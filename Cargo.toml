@@ -1,0 +1,8 @@
+[package]
+name = "rust_synthesizer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cpal = "0.17.3"
+rand = "0.10.1"
