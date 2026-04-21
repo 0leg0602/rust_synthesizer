@@ -1,5 +1,7 @@
+use std::{io::{self, Write}, sync::{Arc, Mutex, atomic::{AtomicI32, AtomicUsize, Ordering}}};
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use rand::{rng};
+use rand::RngExt;
 
 pub struct SoundProperties {
     pub frequency: f32,
@@ -15,6 +17,11 @@ struct SineWave;
 struct SquareWave;
 
 struct SawWave;
+struct WhiteNoise;
+struct RedNoise {
+    filter1: Mutex<f32>,
+    filter2: Mutex<f32>,
+}
 
 impl Waveform for SineWave {
     fn sample_phase(&self, phase: f32) -> f32 {
@@ -34,9 +41,29 @@ impl Waveform for SawWave {
     }
 }
 
+impl Waveform for WhiteNoise {
+    fn sample_phase(&self, _phase: f32) -> f32 {
+        rand::rng().random_range(-1.0..1.0)
+    }
+}
+
+impl Waveform for RedNoise {
+    fn sample_phase(&self, _phase: f32) -> f32 {
+        let mut filter1 = self.filter1.lock().unwrap();
+        let mut filter2 = self.filter2.lock().unwrap();
+
+        let white = rand::rng().random_range(-1.0..1.0);
+        *filter1 = (*filter1 * 0.99) + (white * 0.01);
+        *filter2 = (*filter2 * 0.99) + (*filter1 * 0.01);
+        (*filter2).clamp(-1.0, 1.0) * 10.0
+
+
+    }
+}
+
 struct Sound {
     pub props: SoundProperties,
-    pub waveform: Box<dyn Waveform>,
+    pub waveform: Box<dyn Waveform + Send + Sync>,
 }
 
 impl Sound {
@@ -52,66 +79,133 @@ impl Sound {
         self.props.duration
     }
 
-    fn new<Type: Waveform + 'static> (waveform: Type, frequency: f32, duration: f32) -> Self{
+    fn new<Type: Waveform + Send + Sync + 'static> (waveform: Type, frequency: f32, duration: f32) -> Self{
         Self{props: SoundProperties { frequency: frequency, duration: duration }, waveform: Box::new(waveform)}
     }
 }
 
-fn main() {
-    // let test_sound = Sound::new(SineWave, 400.0, 0.1);
+struct Song {
+    pub name: &'static str,
+    pub sounds: Vec<Sound>,
+}
 
-    // 1. Connect to the speakers
+impl Song {
+    fn new(name: &'static str, sounds: Vec<Sound>) -> Self {
+        Self { name, sounds }
+    }
+}
+
+
+
+fn main() {
     let host = cpal::default_host();
     let device = host.default_output_device().expect("No output device");
     let config = device.default_output_config().unwrap().config();
 
-    // // 2. Get the sample rate (usually 44100 or 48000)
     let sample_rate = config.sample_rate as f32;
     let channels = config.channels as usize;
 
     let mut phase = 0.0;
 
-    let song: Vec<Sound> = vec![
-        Sound::new(SineWave, 400.0, 1.0),
-        Sound::new(SineWave, 600.0, 1.0),
-        Sound::new(SineWave, 300.0, 1.0),
-    ];
+    let songs = Arc::new(vec![
+        Song::new("silence", vec![]),
+        Song::new("happy", 
+            vec![
+                Sound::new(SquareWave, 164.0, 0.25),
+                Sound::new(SquareWave, 220.0, 0.25),
+                Sound::new(SquareWave, 246.0, 0.25),
+                Sound::new(SquareWave, 246.0, 0.25),
+                Sound::new(SquareWave, 184.0, 0.25),
+                Sound::new(SquareWave, 220.0, 0.25),
+                Sound::new(SquareWave, 220.0, 0.25),
+                Sound::new(SquareWave, 246.0, 0.25),
+            ]
+        ),
+        Song::new("flute", 
+            vec![
+                Sound::new(SineWave, 493.0, 0.25),
+                Sound::new(SineWave, 554.0, 0.25),
+                Sound::new(SineWave, 622.0, 0.25),
+                Sound::new(SineWave, 544.0, 0.25),
+                Sound::new(SineWave, 493.0, 0.25),
+                Sound::new(SineWave, 554.0, 0.25),
+                Sound::new(SineWave, 493.0, 0.25),
+                Sound::new(SineWave, 554.0, 0.25),
+                Sound::new(SineWave, 622.0, 0.25),
+                Sound::new(SineWave, 622.0, 0.25),
+                Sound::new(SineWave, 554.0, 0.25),
+                Sound::new(SineWave, 493.0, 0.25),
+            ]
+        ),
+        Song::new("warning", 
+            vec![
+                Sound::new(SquareWave, 55.0, 0.5),
+                Sound::new(SquareWave, 87.0, 0.5),
+                Sound::new(SquareWave, 92.0, 0.5),
+                Sound::new(SquareWave, 77.0, 0.5),
+                Sound::new(SquareWave, 55.0, 0.5),
+                Sound::new(SquareWave, 77.0, 0.5),
+                Sound::new(SquareWave, 82.0, 0.5),
+                Sound::new(SquareWave, 92.0, 0.5),
+            ]
+        ),
+        Song::new("bass", 
+            vec![
+                Sound::new(SquareWave, 123.0, 0.6),
+                Sound::new(SquareWave, 61.0, 0.6),
+                Sound::new(SquareWave, 123.0, 0.6),
+                Sound::new(SquareWave, 61.0, 0.3),
+                Sound::new(SquareWave, 55.0, 0.3),
+            ]
+        ),
+        Song::new("white noise",
+            vec![
+                Sound::new(WhiteNoise, 0.0, f32::MAX),
+            ]
+        ),
+        Song::new("red noise",
+            vec![
+                Sound::new(RedNoise{filter1: Mutex::new(0.0), filter2: Mutex::new(0.0)}, 0.0, f32::MAX),
+            ]
+        ),
 
 
 
-    // sine_wave.get_value(0.4);
-    //
-    let volume = 1.0;
+        
+
+    ]);
+
+    
+    
+    let current_song_index = Arc::new(AtomicUsize::new(0));
+    let current_sound_index = Arc::new(AtomicUsize::new(0));
+
+    let audio_current_song_index = Arc::clone(&current_song_index);
+    let audio_songs = Arc::clone(&songs);
+    let audio_current_sound_index = Arc::clone(&current_sound_index);
+
+
+    let volume = Arc::new(AtomicI32::new(30));
+    let audio_volume = Arc::clone(&volume);
     let mut current_audio_frame = 0.0;
-    let mut current_sound_index = 0 as usize;
-
-    // let mut filter1: f32 = 0.0;
-    // let mut filter2: f32 = 0.0;
-    // let mut filter3: f32 = 0.0;
-
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             for chunk in data.chunks_mut(channels) {
-                // let mut rng = rng();
 
-                // let white = rng.random_range(-1.0..1.0);
+                let current_idx = audio_current_song_index.load(Ordering::Relaxed);
+                let song_sounds = &audio_songs[current_idx].sounds;
+                let current_sound_index = audio_current_sound_index.load(Ordering::Relaxed);
 
-                // filter1 = (filter1 * 0.99) + (white * 0.01);
-
-                // filter2 = (filter2 * 0.99) + (filter1 * 0.01);
-
-                // filter3 = (filter3 * 0.99) + (filter2 * 0.01);
-                // let value = (filter3.clamp(-1.0, 1.0)) * volume;
                 //
-                if current_sound_index < song.len() {
-                    let current_sound = &song[current_sound_index];
+                if current_sound_index < song_sounds.len() {
+                    let current_sound = &song_sounds[current_sound_index];
                     phase = (phase + (current_sound.frequency() / sample_rate)) % 1.0;
-                    let value = current_sound.get_value(phase) * volume;
+                    let value = current_sound.get_value(phase) * (audio_volume.load(Ordering::Relaxed) as f32 / 100.0);
 
                     current_audio_frame += 1 as f32;
                     if current_audio_frame/sample_rate > current_sound.duration() {
-                        current_sound_index += 1;
+                        audio_current_sound_index.store(current_sound_index+1, Ordering::Relaxed);
                         current_audio_frame = 0.0;
                     }
 
@@ -119,18 +213,85 @@ fn main() {
                         *sample = value;
                     }
                 } else {
-                    current_sound_index = 0;
+                    audio_current_sound_index.store(0, Ordering::Relaxed);
                 }
+
+
 
             }
         },
 
-        |err| { /* handle error */ },
+        |_err| { /* handle error */ },
         None,
     ).unwrap();
 
     stream.play().unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(60000));
-    println!("end");
+    println!("type help if you don't know what to do");
+    loop {
+        let mut input = String::new();
+        print!(">>> ");
+        let _ = io::stdout().flush();
+        io::stdin().read_line(&mut input).expect("ERROR");
+        let command = input.trim();
+        let commands: Vec<&str> = command.split_ascii_whitespace().collect();
+        if command.len() < 1 {
+            println!("Empty command")
+        } else {
+            match commands[0].trim() {
+                "q" | "quit" | "exit" => break,
+                "help" => list_commands(),
+                "list" => list_songs(&songs),
+                "play" | "p" => set_song(&commands, &current_song_index, &current_sound_index, &songs),
+                "stop" | "s" => set_song(&["stop", "0"], &current_song_index, &current_sound_index, &songs),
+                "volume" | "vol" | "v" => set_volume(&commands, &volume),
+                _ => println!("What was that?")
+            }
+        }
+    }
+    println!("It was fun while it lasted, goodbye friend!");
+    
+    fn list_songs(songs: &[Song]) {
+        for (i, song) in songs.iter().enumerate() {
+            println!("[{i}]: {}", song.name);
+        }
+    }
 
+}
+
+fn set_volume(commands: &[&str], volume: &AtomicI32) {
+    if commands.len() < 2 {
+        println!("No argument supplied; propper ussage: volume {{value}}; for example: volume 50")
+    } else if let Ok(number) = commands[1].parse::<i32>(){
+        volume.store(number, Ordering::Relaxed);
+    } else {
+        println!("{} is not a valid integer", commands[1]);
+    }
+}
+
+
+fn set_song(commands: &[&str], current_song_index: &Arc<AtomicUsize>, current_sound_index: &Arc<AtomicUsize>, songs: &[Song]) {
+    if commands.len() < 2 {
+        println!("No argument supplied; propper ussage: play {{value}}; for example: play 1")
+    } else if let Ok(number) = commands[1].parse::<usize>(){
+        if songs.len() > number {
+            current_song_index.store(number, std::sync::atomic::Ordering::Relaxed);
+            current_sound_index.store(0, Ordering::Relaxed);
+        } else {
+            println!("Song out of bounds");
+        }
+    } else {
+        println!("{} is not a valid positive number", commands[1]);
+    }
+}
+
+
+
+fn list_commands() {
+    println!("
+    help -> show this list
+    list -> list all songs
+    play {{song number}} -> select the song to play
+    stop -> stop playing
+    volume {{value}} -> set the volume; 0 is min; 100 is max; you can go above 100 but the sound will be distorted
+    ");
 }
