@@ -1,3 +1,27 @@
+/// @author Oleg
+/// time-start: ???
+/// time-end: Tue 21 Apr 21:21:40 EDT 2026
+/// 
+/// For my ISU stage 3 part 2 I decided to create a stand alone program instead of question answer style.
+/// My program is a basic music sythesizer.
+/// Instead of using a hight level sound generation Library,
+/// I decided to try and make sound using cpal a low-level library designed for audio input and output.
+/// To create sound using cpal you have to use a separate sound thread,
+/// so every variable which I want to have control over in my main thread has to be a Atomic Reference Counter (ARC)
+/// 
+/// The logic behind playing the songs is simple:
+/// There is a songs vector (array) containing a whole bunch of songs,
+/// the variable current_song_index correspond to which song currently playing,
+/// song 0 is just silence
+/// by changin this variable you can switch the song
+/// 
+/// I made a simple cli to make it easier to list and switch songs,
+/// however to make a song you have to edit the source code
+/// 
+/// Inheritance is not possible in rust you can not create an object which extends another objects 
+/// instead you use composition, implementaion and traits to achive simular structure
+
+
 use std::{io::{self, Write}, sync::{Arc, Mutex, atomic::{AtomicI32, AtomicUsize, Ordering}}};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -8,6 +32,7 @@ pub struct SoundProperties {
     pub duration: f32,
 }
 
+// Abstraction, traits have abstract functions meaning anything that implements this trait must define this funtion.
 trait Waveform: Send {
     fn sample_phase(&self, phase: f32) -> f32;
 }
@@ -32,7 +57,11 @@ impl Waveform for SineWave {
 
 impl Waveform for SquareWave {
     fn sample_phase(&self, phase: f32) -> f32 {
-        if phase < 0.5 { 1.0 } else { -1.0 }
+        if phase < 0.5 { 
+            1.0
+        } else { 
+            -1.0
+        }
     }
 }
 
@@ -80,11 +109,11 @@ impl Sound {
         self.props.duration
     }
 
-    fn new<Type: Waveform + Send + Sync + 'static> (waveform: Type, frequency: f32, duration: f32) -> Self{
+    fn new<Type: Waveform + Send + Sync + 'static> (waveform: Type, frequency: f32, duration: f32) -> Self {
         Self{props: SoundProperties { frequency: frequency, duration: duration }, waveform: Box::new(waveform)}
     }
 }
-
+// Composition one "Object" (struct) has a field of arrays 
 struct Song {
     pub name: &'static str,
     pub sounds: Vec<Sound>,
@@ -169,7 +198,7 @@ fn main() {
                 Sound::new(RedNoise{filter1: Mutex::new(0.0), filter2: Mutex::new(0.0)}, 0.0, f32::MAX),
             ]
         ),
-        Song::new("rene masrerpeice",
+        Song::new("René's masterpiece",
             vec![
                 Sound::new(SineWave, 68.0, 0.5),
                 Sound::new(SquareWave, 105.0, 0.5),
@@ -185,7 +214,7 @@ fn main() {
                 Sound::new(SquareWave, 61.0, 1.5),
             ]
         ),
-        Song::new("THE GOAT AND THE JASON MASTERPEICE",
+        Song::new("THE JASON THE GOAT's masterpiece",
             vec![
                 Sound::new(SineWave, 105.0, 0.1),
                 Sound::new(SineWave, 150.0, 0.1),
@@ -194,23 +223,30 @@ fn main() {
 
     ]);
 
-
+    // variables
+    // all variables with audio_ prefix are clones of another variables designed to be moved to the audio thread
+    // so that they can be accessed from outside
 
     let current_song_index = Arc::new(AtomicUsize::new(0));
     let current_sound_index = Arc::new(AtomicUsize::new(0));
 
-    let audio_current_song_index = Arc::clone(&current_song_index);
     let audio_songs = Arc::clone(&songs);
+    let audio_current_song_index = Arc::clone(&current_song_index);
     let audio_current_sound_index = Arc::clone(&current_sound_index);
 
 
     let volume = Arc::new(AtomicI32::new(30));
     let audio_volume = Arc::clone(&volume);
+
+
     let mut current_audio_frame = 0.0;
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             for chunk in data.chunks_mut(channels) {
+
+                // You can not use ARC's as normal variables, because they are shared between threads.
+                // To read the variable .load is used, to write to the variable .store is used
 
                 let current_idx = audio_current_song_index.load(Ordering::Relaxed);
                 let song_sounds = &audio_songs[current_idx].sounds;
@@ -234,9 +270,6 @@ fn main() {
                 } else {
                     audio_current_sound_index.store(0, Ordering::Relaxed);
                 }
-
-
-
             }
         },
 
@@ -246,9 +279,13 @@ fn main() {
 
     stream.play().unwrap();
     println!("type help if you don't know what to do");
+    // My cli 
+    // In addition to the while for and other loops rust has a loop loop, which is just a while (true) loop
     loop {
         let mut input = String::new();
         print!(">>> ");
+        // When using print! instead of println! to get text on the same line, just will not output the string immediately
+        // instead it has to be flushed manualy
         let _ = io::stdout().flush();
         io::stdin().read_line(&mut input).expect("ERROR");
         let command = input.trim();
@@ -257,9 +294,9 @@ fn main() {
             println!("Empty command")
         } else {
             match commands[0].trim() {
-                "q" | "quit" | "exit" => break,
-                "help" => list_commands(),
-                "list" => list_songs(&songs),
+                "quit" | "exit" | "e" | "q" => break,
+                "help" | "h" => list_commands(),
+                "list" | "l" => list_songs(&songs),
                 "play" | "p" => set_song(&commands, &current_song_index, &current_sound_index, &songs),
                 "stop" | "s" => set_song(&["stop", "0"], &current_song_index, &current_sound_index, &songs),
                 "volume" | "vol" | "v" => set_volume(&commands, &volume),
@@ -268,13 +305,12 @@ fn main() {
         }
     }
     println!("It was fun while it lasted, goodbye friend!");
+}
 
-    fn list_songs(songs: &[Song]) {
-        for (i, song) in songs.iter().enumerate() {
-            println!("[{i}]: {}", song.name);
-        }
+fn list_songs(songs: &[Song]) {
+    for (i, song) in songs.iter().enumerate() {
+        println!("[{i}]: {}", song.name);
     }
-
 }
 
 fn set_volume(commands: &[&str], volume: &AtomicI32) {
@@ -287,13 +323,13 @@ fn set_volume(commands: &[&str], volume: &AtomicI32) {
     }
 }
 
-
 fn set_song(commands: &[&str], current_song_index: &Arc<AtomicUsize>, current_sound_index: &Arc<AtomicUsize>, songs: &[Song]) {
     if commands.len() < 2 {
         println!("No argument supplied; propper ussage: play {{value}}; for example: play 1")
-    } else if let Ok(number) = commands[1].parse::<usize>(){
+    } else if let Ok(number) = commands[1].parse::<usize>() {
+        // if let Ok(value1) = value2 is a simplified version of try and catch with resourses
         if songs.len() > number {
-            current_song_index.store(number, std::sync::atomic::Ordering::Relaxed);
+            current_song_index.store(number, Ordering::Relaxed);
             current_sound_index.store(0, Ordering::Relaxed);
         } else {
             println!("Song out of bounds");
@@ -302,8 +338,6 @@ fn set_song(commands: &[&str], current_song_index: &Arc<AtomicUsize>, current_so
         println!("{} is not a valid positive number", commands[1]);
     }
 }
-
-
 
 fn list_commands() {
     println!("
