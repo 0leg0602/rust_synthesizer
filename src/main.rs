@@ -17,6 +17,7 @@ struct SineWave;
 struct SquareWave;
 
 struct SawWave;
+
 struct WhiteNoise;
 struct RedNoise {
     filter1: Mutex<f32>,
@@ -109,7 +110,7 @@ fn main() {
 
     let songs = Arc::new(vec![
         Song::new("silence", vec![]),
-        Song::new("happy", 
+        Song::new("happy",
             vec![
                 Sound::new(SquareWave, 164.0, 0.25),
                 Sound::new(SquareWave, 220.0, 0.25),
@@ -121,7 +122,7 @@ fn main() {
                 Sound::new(SquareWave, 246.0, 0.25),
             ]
         ),
-        Song::new("flute", 
+        Song::new("flute",
             vec![
                 Sound::new(SineWave, 493.0, 0.25),
                 Sound::new(SineWave, 554.0, 0.25),
@@ -137,7 +138,7 @@ fn main() {
                 Sound::new(SineWave, 493.0, 0.25),
             ]
         ),
-        Song::new("warning", 
+        Song::new("warning",
             vec![
                 Sound::new(SquareWave, 55.0, 0.5),
                 Sound::new(SquareWave, 87.0, 0.5),
@@ -149,7 +150,7 @@ fn main() {
                 Sound::new(SquareWave, 92.0, 0.5),
             ]
         ),
-        Song::new("bass", 
+        Song::new("bass",
             vec![
                 Sound::new(SquareWave, 123.0, 0.6),
                 Sound::new(SquareWave, 61.0, 0.6),
@@ -168,15 +169,33 @@ fn main() {
                 Sound::new(RedNoise{filter1: Mutex::new(0.0), filter2: Mutex::new(0.0)}, 0.0, f32::MAX),
             ]
         ),
-
-
-
-        
+        Song::new("rene masrerpeice",
+            vec![
+                Sound::new(SineWave, 68.0, 0.5),
+                Sound::new(SquareWave, 105.0, 0.5),
+                Sound::new(RedNoise{filter1: Mutex::new(0.0), filter2: Mutex::new(0.0)}, 300.0, 0.3),
+                Sound::new(WhiteNoise, 300.0, 0.3),
+                Sound::new(SawWave, 160.0, 0.5),
+                Sound::new(SineWave, 210.0, 0.5),
+                Sound::new(SquareWave, 290.0, 0.5),
+                Sound::new(RedNoise{filter1: Mutex::new(0.0), filter2: Mutex::new(0.0)}, 290.0, 0.3),
+                Sound::new(WhiteNoise, 290.0, 0.3),
+                Sound::new(SawWave, 360.0, 0.5),
+                Sound::new(SineWave, 450.0, 0.5),
+                Sound::new(SquareWave, 61.0, 1.5),
+            ]
+        ),
+        Song::new("THE GOAT AND THE JASON MASTERPEICE",
+            vec![
+                Sound::new(SineWave, 105.0, 0.1),
+                Sound::new(SineWave, 150.0, 0.1),
+            ]
+        ),
 
     ]);
 
-    
-    
+
+
     let current_song_index = Arc::new(AtomicUsize::new(0));
     let current_sound_index = Arc::new(AtomicUsize::new(0));
 
@@ -249,7 +268,7 @@ fn main() {
         }
     }
     println!("It was fun while it lasted, goodbye friend!");
-    
+
     fn list_songs(songs: &[Song]) {
         for (i, song) in songs.iter().enumerate() {
             println!("[{i}]: {}", song.name);
