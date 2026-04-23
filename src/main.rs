@@ -1,24 +1,24 @@
 /// @author Oleg
 /// time-start: ???
 /// time-end: Tue 21 Apr 21:21:40 EDT 2026
-/// 
+///
 /// For my ISU stage 3 part 2 I decided to create a stand alone program instead of question answer style.
 /// My program is a basic music sythesizer.
 /// Instead of using a hight level sound generation Library,
 /// I decided to try and make sound using cpal a low-level library designed for audio input and output.
 /// To create sound using cpal you have to use a separate sound thread,
 /// so every variable which I want to have control over in my main thread has to be a Atomic Reference Counter (ARC)
-/// 
+///
 /// The logic behind playing the songs is simple:
 /// There is a songs vector (array) containing a whole bunch of songs,
 /// the variable current_song_index correspond to which song currently playing,
 /// song 0 is just silence
 /// by changin this variable you can switch the song
-/// 
+///
 /// I made a simple cli to make it easier to list and switch songs,
 /// however to make a song you have to edit the source code
-/// 
-/// Inheritance is not possible in rust you can not create an object which extends another objects 
+///
+/// Inheritance is not possible in rust you can not create an object which extends another objects
 /// instead you use composition, implementaion and traits to achive simular structure
 
 
@@ -57,9 +57,9 @@ impl Waveform for SineWave {
 
 impl Waveform for SquareWave {
     fn sample_phase(&self, phase: f32) -> f32 {
-        if phase < 0.5 { 
+        if phase < 0.5 {
             1.0
-        } else { 
+        } else {
             -1.0
         }
     }
@@ -113,7 +113,7 @@ impl Sound {
         Self{props: SoundProperties { frequency: frequency, duration: duration }, waveform: Box::new(waveform)}
     }
 }
-// Composition one "Object" (struct) has a field of arrays 
+// Composition one "Object" (struct) has a field of arrays
 struct Song {
     pub name: &'static str,
     pub sounds: Vec<Sound>,
@@ -220,6 +220,38 @@ fn main() {
                 Sound::new(SineWave, 150.0, 0.1),
             ]
         ),
+        Song::new("Mr O's  masterpiece",
+            vec![
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 260.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.5),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.5),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 380.0, 0.25),
+                Sound::new(SineWave, 380.0, 0.5),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 260.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 320.0, 0.25),
+                Sound::new(SineWave, 290.0, 0.25),
+                Sound::new(SineWave, 260.0, 1.0),
+
+            ]
+        ),
+        // 263.28; 277.18
 
     ]);
 
@@ -279,7 +311,7 @@ fn main() {
 
     stream.play().unwrap();
     println!("type help if you don't know what to do");
-    // My cli 
+    // My cli
     // In addition to the while for and other loops rust has a loop loop, which is just a while (true) loop
     loop {
         let mut input = String::new();
